@@ -92,8 +92,9 @@ def health():
     return jsonify({
         'status': 'healthy', 
         'tasks_count': len(tasks),
-        'version': '1.0',
-        'environment': 'production'
+        'version': '1.1',
+        'environment': 'production',
+        'message': 'Task Manager API is running'
     }), 200
 
 if __name__ == '__main__':
