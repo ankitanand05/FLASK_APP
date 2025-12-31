@@ -99,10 +99,72 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
       continue-on-error: true
 
-  # Future: Add AWS deployment job here
-  # deploy:
-  #   name: Deploy to AWS EC2
-  #   needs: [test, docker-build-push]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - Add AWS deployment steps here
+  deploy:
+    name: Deploy to AWS EC2
+    needs: [test, docker-build-push]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Deploy to EC2 via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USERNAME }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          echo "🚀 Starting deployment..."
+          cd ~/FLASK_APP || { echo "App directory not found!"; exit 1; }
+          
+          # Pull latest code
+          echo "📥 Pulling latest code..."
+          git pull origin main
+          
+          # Stop old container
+          echo "🛑 Stopping old container..."
+          sudo docker stop flask-app || true
+          sudo docker rm flask-app || true
+          
+          # Remove old image
+          echo "🗑️ Removing old image..."
+          sudo docker rmi flask-task-manager || true
+          
+          # Build new image
+          echo "🏗️ Building new Docker image..."
+          sudo docker build -t flask-task-manager .
+          
+          # Run new container
+          echo "🐳 Starting new container..."
+          sudo docker run -d \
+            --name flask-app \
+            -p 80:5000 \
+            --restart unless-stopped \
+            flask-task-manager
+          
+          # Wait for app to start
+          echo "⏳ Waiting for app to start..."
+          sleep 10
+          
+          # Health check
+          echo "🏥 Running health check..."
+          if curl -f http://localhost:5000/health; then
+              echo "✅ Deployment successful!"
+          else
+              echo "❌ Health check failed!"
+              exit 1
+          fi
+    
+    - name: Deployment Success Notification
+      if: success()
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        echo "✅ Application is live at http://${{ secrets.EC2_HOST }}"
+    
+    - name: Deployment Failure Notification
+      if: failure()
+      run: |
+        echo "❌ Deployment failed!"
+        echo "Check the logs above for details."
