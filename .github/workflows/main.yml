@@ -90,7 +90,7 @@ jobs:
         echo "✅ Production Docker image validated!"
     
     - name: Push to Docker Hub (if credentials available)
-      if: github.event_name != 'pull_request' && secrets.DOCKER_USERNAME != ''
+      if: github.event_name != 'pull_request'
       uses: docker/build-push-action@v5
       with:
         context: .
