@@ -116,25 +116,33 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
+          set -e
           echo "🚀 Starting deployment..."
-          cd ~/FLASK_APP || { echo "App directory not found!"; exit 1; }
+          
+          # Navigate to app directory
+          cd ~/FLASK_APP || { echo "❌ App directory not found!"; exit 1; }
+          echo "✅ In directory: $(pwd)"
           
           # Pull latest code
           echo "📥 Pulling latest code..."
-          git pull origin main
+          git reset --hard origin/main
+          git pull origin main || { echo "❌ Git pull failed!"; exit 1; }
+          echo "✅ Code updated"
           
-          # Stop old container
+          # Stop and remove old container (ignore errors)
           echo "🛑 Stopping old container..."
-          sudo docker stop flask-app || true
-          sudo docker rm flask-app || true
+          sudo docker stop flask-app 2>/dev/null || echo "Container not running"
+          sudo docker rm flask-app 2>/dev/null || echo "Container not found"
+          echo "✅ Old container removed"
           
-          # Remove old image
+          # Remove old image (ignore errors)
           echo "🗑️ Removing old image..."
-          sudo docker rmi flask-task-manager || true
+          sudo docker rmi flask-task-manager 2>/dev/null || echo "No old image to remove"
           
           # Build new image
           echo "🏗️ Building new Docker image..."
-          sudo docker build -t flask-task-manager .
+          sudo docker build -t flask-task-manager . || { echo "❌ Docker build failed!"; exit 1; }
+          echo "✅ Image built"
           
           # Run new container
           echo "🐳 Starting new container..."
@@ -142,20 +150,27 @@ jobs:
             --name flask-app \
             -p 80:5000 \
             --restart unless-stopped \
-            flask-task-manager
+            flask-task-manager || { echo "❌ Container start failed!"; exit 1; }
+          echo "✅ Container started"
           
           # Wait for app to start
           echo "⏳ Waiting for app to start..."
-          sleep 10
+          sleep 15
           
-          # Health check
+          # Health check with retries
           echo "🏥 Running health check..."
-          if curl -f http://localhost/health; then
+          for i in {1..5}; do
+            if curl -f http://localhost/health; then
               echo "✅ Deployment successful!"
-          else
-              echo "❌ Health check failed!"
-              exit 1
-          fi
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 5
+          done
+          
+          echo "❌ Health check failed after 5 attempts!"
+          sudo docker logs flask-app
+          exit 1
     
     - name: Deployment Success Notification
       if: success()
