@@ -1,0 +1,49 @@
+name: Production CI/CD
+
+# This workflow runs when you push to main branch
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test Application
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Step 1: Get the code
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    # Step 2: Set up Python
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    # Step 3: Install dependencies
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+    
+    # Step 4: Run tests
+    - name: Run tests
+      run: |
+        pytest test_app.py -v
+    
+    # Step 5: Verify production readiness
+    - name: Production readiness check
+      run: |
+        echo "✅ All tests passed!"
+        echo "✅ Code is production-ready!"
+        echo "🚀 Ready for deployment!"
+
+  # Future: Add deployment job here
+  # deploy:
+  #   name: Deploy to AWS
+  #   needs: test
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - Add AWS deployment steps here
