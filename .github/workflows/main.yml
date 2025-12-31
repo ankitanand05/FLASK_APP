@@ -125,20 +125,20 @@ jobs:
           
           # Stop old container
           echo "🛑 Stopping old container..."
-          docker stop flask-app || true
-          docker rm flask-app || true
+          sudo docker stop flask-app || true
+          sudo docker rm flask-app || true
           
           # Remove old image
           echo "🗑️ Removing old image..."
-          docker rmi flask-task-manager || true
+          sudo docker rmi flask-task-manager || true
           
           # Build new image
           echo "🏗️ Building new Docker image..."
-          docker build -t flask-task-manager .
+          sudo docker build -t flask-task-manager .
           
           # Run new container
           echo "🐳 Starting new container..."
-          docker run -d \
+          sudo docker run -d \
             --name flask-app \
             -p 80:5000 \
             --restart unless-stopped \
