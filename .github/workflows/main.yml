@@ -1,6 +1,5 @@
 name: Production CI/CD
 
-# This workflow runs when you push to main branch
 on:
   push:
     branches: [ main ]
@@ -40,10 +39,70 @@ jobs:
         echo "✅ Code is production-ready!"
         echo "🚀 Ready for deployment!"
 
-  # Future: Add deployment job here
+  docker-build-push:
+    name: Build & Push Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Docker Hub (Optional)
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+      continue-on-error: true
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ secrets.DOCKER_USERNAME }}/flask-task-manager
+        tags: |
+          type=sha,prefix={{branch}}-
+          type=ref,event=branch
+          type=semver,pattern={{version}}
+          latest
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: flask-task-manager:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test Docker image
+      run: |
+        docker build -t flask-app-prod .
+        docker run -d -p 5000:5000 --name prod-test flask-app-prod
+        sleep 10
+        curl http://localhost:5000/health || exit 1
+        docker stop prod-test
+        echo "✅ Production Docker image validated!"
+    
+    - name: Push to Docker Hub (if credentials available)
+      if: secrets.DOCKER_USERNAME != '' && secrets.DOCKER_PASSWORD != ''
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+      continue-on-error: true
+
+  # Future: Add AWS deployment job here
   # deploy:
-  #   name: Deploy to AWS
-  #   needs: test
+  #   name: Deploy to AWS EC2
+  #   needs: [test, docker-build-push]
   #   runs-on: ubuntu-latest
   #   steps:
   #     - Add AWS deployment steps here
